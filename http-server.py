@@ -1,26 +1,4 @@
-# MIT License
-
-# Copyright (c) [2024] [github\babadue]
-
-# Permission is hereby granted, free of charge, to any person obtaining a copy
-# of this software and associated documentation files (the "Software"), to deal
-# in the Software without restriction, including without limitation the rights
-# to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
-# copies of the Software, and to permit persons to whom the Software is
-# furnished to do so, subject to the following conditions:
-
-# The above copyright notice and this permission notice shall be included in all
-# copies or substantial portions of the Software.
-
-# THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
-# IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
-# FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
-# AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
-# LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
-# OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
-# SOFTWARE.
-
-from flask import Flask, render_template, request, redirect, url_for, send_from_directory
+from flask import Flask, request, redirect, url_for, send_from_directory
 import os
 
 app = Flask(__name__)
@@ -30,17 +8,20 @@ UPLOAD_FOLDER = 'uploads'
 os.makedirs(UPLOAD_FOLDER, exist_ok=True)
 app.config['UPLOAD_FOLDER'] = UPLOAD_FOLDER
 
-# Optional: Set a file size limit (in bytes)
-# app.config['MAX_CONTENT_LENGTH'] = 16 * 1024 * 1024  # 16MB
-
 @app.route('/')
 def index():
     # Display the upload form and list of uploaded files
-    files = os.listdir(app.config['UPLOAD_FOLDER'])
+    files = []
+    for root, dirs, filenames in os.walk(app.config['UPLOAD_FOLDER']):
+        for filename in filenames:
+            # Collect relative paths of all files
+            relative_path = os.path.relpath(os.path.join(root, filename), app.config['UPLOAD_FOLDER'])
+            files.append(relative_path)
+
     return '''
-    <h1>Upload a File</h1>
-    <form method="POST" enctype="multipart/form-data" action="/upload">
-        <input type="file" name="file">
+    <h1>Upload a Folder</h1>
+    <form method="POST" enctype="multipart/form-data" action="/upload" multiple>
+        <input type="file" name="files" webkitdirectory multiple>
         <input type="submit" value="Upload">
     </form>
     <h2>Uploaded Files</h2>
@@ -50,21 +31,37 @@ def index():
     '''
 
 @app.route('/upload', methods=['POST'])
-def upload_file():
-    if 'file' not in request.files:
-        return 'No file part'
-    file = request.files['file']
-    if file.filename == '':
-        return 'No selected file'
-    if file:
-        file.save(os.path.join(app.config['UPLOAD_FOLDER'], file.filename))
-        return redirect(url_for('index'))
+def upload_files():
+    if 'files' not in request.files:
+        return 'No files part'
 
-@app.route('/download/<filename>')
+    files = request.files.getlist('files')
+    if not files:
+        return 'No selected files'
+
+    for file in files:
+        # Print the original filename to debug path structure
+        # print(f"Received file: {file.filename}")
+
+        if file.filename:
+            # Debug: Check if filename includes folder structure
+            file_path = os.path.join(app.config['UPLOAD_FOLDER'], file.filename)
+            
+            # Print path to confirm the subfolder structure is maintained
+            # print(f"Saving to: {file_path}")
+
+            # Ensure the directory exists for the file
+            os.makedirs(os.path.dirname(file_path), exist_ok=True)
+
+            # Save file to the designated path
+            file.save(file_path)
+
+    return redirect(url_for('index'))
+
+@app.route('/download/<path:filename>')
 def download_file(filename):
-    # Serve the requested file for download
+    # Serve the requested file for download, preserving nested directory structure
     return send_from_directory(app.config['UPLOAD_FOLDER'], filename, as_attachment=True)
 
 if __name__ == '__main__':
-    # app.run(debug=True)
     app.run(host='0.0.0.0', port=5000)

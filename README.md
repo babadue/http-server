@@ -2,7 +2,9 @@
 
 ## Description:
 
-A simple HTTP server for uploading and downloading files for windows.
+A simple HTTP server for uploading and downloading files on Windows. 
+
+It now supports uploads at the folder level. Unfortunately, it only works with Edge and Chrome, not with Safari.
 
 ## Purposes:
 
